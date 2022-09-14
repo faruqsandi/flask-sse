@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 from collections import OrderedDict
 from flask import Blueprint, request, current_app, json, stream_with_context
 from redis import StrictRedis
-from redis.exceptions import ConnectionError
+from redis.exceptions import ConnectionError, TimeoutError
 import six
 
 __version__ = '1.0.0'
@@ -108,7 +108,8 @@ class ServerSentEventsBlueprint(Blueprint):
             redis_url = current_app.config.get("REDIS_URL")
         if not redis_url:
             raise KeyError("Must set a redis connection URL in app config.")
-        return StrictRedis.from_url(redis_url)
+        redis_time_out = current_app.config.get("SSE_REDIS_TIMEOUT") or 10
+        return return StrictRedis.from_url(redis_url, socket_timeout=redis_time_out)
 
     def publish(self, data, type=None, id=None, retry=None, channel='sse'):
         """
@@ -141,9 +142,12 @@ class ServerSentEventsBlueprint(Blueprint):
                 if pubsub_message['type'] == 'message':
                     msg_dict = json.loads(pubsub_message['data'])
                     yield Message(**msg_dict)
+        except TimeoutError as e:
+            yield Message({}, type='timeout')
         finally:
             try:
                 pubsub.unsubscribe(channel)
+                pubsub.close()
             except ConnectionError:
                 pass
 
