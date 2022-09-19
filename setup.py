@@ -17,6 +17,7 @@ install_requires = [
     "flask>=0.9",
     "redis",
     "six",
+    "wheel"
 ]
 test_requires = [
     "pytest",
